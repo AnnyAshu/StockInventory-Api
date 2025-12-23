@@ -1,0 +1,130 @@
+CREATE TABLE Tenants
+(
+    TenantId     INT IDENTITY(1,1) PRIMARY KEY,
+    TenantName   NVARCHAR(100) NOT NULL,
+    SubDomain    NVARCHAR(100) NOT NULL UNIQUE,
+    IsActive     BIT NOT NULL DEFAULT 1,
+    CreatedOn    DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+CREATE TABLE Users
+(
+    UserId        INT IDENTITY(1,1) PRIMARY KEY,
+    TenantId      INT NOT NULL,
+    Email         NVARCHAR(150) NOT NULL UNIQUE,
+    PasswordHash  NVARCHAR(MAX) NOT NULL,
+    Role          NVARCHAR(20) NOT NULL
+        CHECK (Role IN ('Admin','Manager','Staff')),
+    IsActive      BIT NOT NULL DEFAULT 1,
+
+    CONSTRAINT FK_Users_Tenants
+        FOREIGN KEY (TenantId) REFERENCES Tenants(TenantId)
+);
+CREATE TABLE Categories
+(
+    CategoryId   INT IDENTITY(1,1) PRIMARY KEY,
+    TenantId     INT NOT NULL,
+    CategoryName NVARCHAR(100) NOT NULL,
+
+    CONSTRAINT FK_Categories_Tenants
+        FOREIGN KEY (TenantId) REFERENCES Tenants(TenantId),
+
+    CONSTRAINT UQ_Category
+        UNIQUE (TenantId, CategoryName)
+);
+CREATE TABLE Products
+(
+    ProductId   INT IDENTITY(1,1) PRIMARY KEY,
+    TenantId    INT NOT NULL,
+    CategoryId  INT NULL,
+    ProductName NVARCHAR(150) NOT NULL,
+    SKU         NVARCHAR(50) NOT NULL,
+    Price       DECIMAL(18,2) NOT NULL,
+    Quantity    INT NOT NULL DEFAULT 0,
+
+    CONSTRAINT FK_Products_Tenants
+        FOREIGN KEY (TenantId) REFERENCES Tenants(TenantId),
+
+    CONSTRAINT FK_Products_Categories
+        FOREIGN KEY (CategoryId) REFERENCES Categories(CategoryId),
+
+    CONSTRAINT UQ_Product_SKU
+        UNIQUE (TenantId, SKU)
+);
+CREATE TABLE StockTransactions
+(
+    Id        INT IDENTITY(1,1) PRIMARY KEY,
+    TenantId  INT NOT NULL,
+    ProductId INT NOT NULL,
+    Type      NVARCHAR(10) NOT NULL
+        CHECK (Type IN ('IN','OUT')),
+    Quantity  INT NOT NULL CHECK (Quantity > 0),
+    Date      DATETIME2 NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT FK_Stock_Tenants
+        FOREIGN KEY (TenantId) REFERENCES Tenants(TenantId),
+
+    CONSTRAINT FK_Stock_Products
+        FOREIGN KEY (ProductId) REFERENCES Products(ProductId)
+);
+INSERT INTO Tenants (TenantName, SubDomain)
+VALUES ('Default Tenant', 'default');
+DECLARE @TenantId INT =
+(
+    SELECT TenantId FROM Tenants WHERE SubDomain = 'default'
+);
+
+INSERT INTO Users
+(
+    TenantId, Email, PasswordHash, Role
+)
+VALUES
+(
+    @TenantId,
+    'admin@inventory.com',
+    'Admin@123_HASH',
+    'Admin'
+);
+INSERT INTO Categories (TenantId, CategoryName)
+VALUES
+(@TenantId, 'Electronics'),
+(@TenantId, 'Stationery'),
+(@TenantId, 'Grocery'),
+(@TenantId, 'Furniture');
+DECLARE @CategoryId INT =
+(
+    SELECT CategoryId FROM Categories
+    WHERE CategoryName = 'Electronics' AND TenantId = @TenantId
+);
+
+INSERT INTO Products
+(
+    TenantId, CategoryId, ProductName, SKU, Price, Quantity
+)
+VALUES
+(@TenantId, @CategoryId, 'Laptop', 'ELE-001', 65000, 10),
+(@TenantId, @CategoryId, 'Mouse', 'ELE-002', 500, 50),
+(@TenantId, @CategoryId, 'Keyboard', 'ELE-003', 1200, 30),
+(@TenantId, @CategoryId, 'Monitor', 'ELE-004', 15000, 15),
+(@TenantId, @CategoryId, 'Printer', 'ELE-005', 9000, 8),
+(@TenantId, @CategoryId, 'Router', 'ELE-006', 2500, 20),
+(@TenantId, @CategoryId, 'Webcam', 'ELE-007', 3000, 12),
+(@TenantId, @CategoryId, 'Hard Disk', 'ELE-008', 4500, 18),
+(@TenantId, @CategoryId, 'Pen Drive', 'ELE-009', 700, 40),
+(@TenantId, @CategoryId, 'UPS', 'ELE-010', 6000, 5);
+DECLARE @ProductId INT =
+(
+    SELECT TOP 1 ProductId FROM Products
+);
+
+INSERT INTO StockTransactions
+(
+    TenantId, ProductId, Type, Quantity
+)
+VALUES
+(@TenantId, @ProductId, 'IN', 10),
+(@TenantId, @ProductId, 'OUT', 2);
+SELECT * FROM Tenants;
+SELECT * FROM Users;
+SELECT * FROM Categories;
+SELECT * FROM Products;
+SELECT * FROM StockTransactions;
